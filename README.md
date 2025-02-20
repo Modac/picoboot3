@@ -4,11 +4,11 @@ Custom bootloader that allows firmware updates to Raspberry Pi Pico via UART/I2C
 
 ## Features
 
-### Firmware Update via UART/I2C
+### Firmware Update via UART/I2C/SPI
 
 Raspberry Pi Pico's built-in bootloader allows you to write firmware via USB or SWD. 
 However, in some situations, other interfaces may be useful. 
-Picoboot3 now offers the options of UART and I2C.
+Picoboot3 now offers the options of UART, I2C and SPI. 
 
 Let's think about you have a custom Pico board that runs on a Raspberry Pi. 
 You can provide end users with firmware update functionality without USB connectors. 
@@ -33,6 +33,7 @@ You can configure below easily by editing the header file.
 - BOOTSEL3 pin that switches between picoboot3 and your application code
 - UART#, TX/RX pins and baudrate
 - I2C#, SDA/SCL pins and device address
+- SPI# and CSn/SCK/TX/RX pins
 
 
 ## How it Works
@@ -74,7 +75,7 @@ by V. Hunter Adams.
 - Supports Arm core. RISC-V core is not supproted. 
 - UART interface was tested on Windows/Linux/Raspberry Pi hosts and 
 FTDI/Raspberry Pi UART/Pico debugprobe adapters. 
-- I2C interface was tested on Raspberry Pi host. 
+- I2C and SPI interface was tested on Raspberry Pi host. 
 
 
 # Getting Started
@@ -86,6 +87,7 @@ pre-compiled binaries for Pico and Pico2 boards are available in
 [releases](https://github.com/IndoorCorgi/picoboot3/releases). 
 
 Download it and write to your board as you normally would. 
+Skip "Building Picoboot3" and go to "Modify Your Application". 
 
 
 ## Building Picoboot3
@@ -95,6 +97,14 @@ Clone this repo and edit the "Configurations" section of
 
 If you use VS Code and Raspberry Pi Pico extension, 
 open this directory and import as Raspberry Pi Pico project. 
+
+The following example changes the UART to uart1, GP8 and GP9. 
+Be careful not to conflict with pins assigned to other interfaces. 
+~~~
+#define PICOBOOT3_UART_INST uart1
+#define PICOBOOT3_UART_TX_PIN 8
+#define PICOBOOT3_UART_RX_PIN 9
+~~~
 
 Change PICO_BOARD value in [CMakeLists.txt](CMakeLists.txt) to match your board. 
 (e.g. pico2)
@@ -220,9 +230,36 @@ Reset the MCU by holding BOOTSEL3 pin (default is GP22) low to enter bootloader 
 
 Write firmware with the following command. 
 Only bin format is supported. Do not use elf or uf2. 
---bus specifies i2c bus#. Use 1 for Raspberry Pi. 
+--bus specifies I2C bus#. Use 1 for Raspberry Pi. 
 ~~~
 picoboot3 -i i2c -f your_firmware.bin --bus 1 -a
+~~~
+
+The -a option runs the application after the firmware is written.
+
+
+## Write Your Firmware via SPI
+
+On Raspberry Pi, make sure SPI is enabled. 
+
+Connect the device as follows:
+| Host |      | Device (Pico) |
+| ---- |:----:| ----          |
+| CE   | ---  | CSn (Default is GP17) |
+| SCLK | ---  | SCK (Default is GP18) |
+| MOSI | ---  | RX (Default is GP16)  |
+| MISO | ---  | TX (Default is GP19)  |
+| GND  | ---  | GND           |
+
+Reset the MCU by holding BOOTSEL3 pin (default is GP22) low to enter bootloader mode. 
+
+Write firmware with the following command. 
+Only bin format is supported. Do not use elf or uf2. 
+--bus specifies SPI bus#. Use 1 for Raspberry Pi. 
+--device specifies CE#. 
+10MHz or lower baudrate is recommended. 
+~~~
+picoboot3 -i spi -f your_firmware.bin --bus 0 --device 0 --baud 10000000 -a
 ~~~
 
 The -a option runs the application after the firmware is written.
@@ -386,4 +423,23 @@ Gets the flash size in bytes, including the bootloader area.
 | ----        | ----                |
 | 4           | Flash size in Bytes |
 
+
+## SPI Interface
+
+- Use Mode3 (CPOL=1, CPHA=1), MSB first
+- CS can be left low or can be returned to high between Byte transfers. 
+- After sending a command to the device, the host should return CS high to prepare
+the device for a response. 
+- After sending a command to the device, the host must read all responses 
+from the device before sending the next command.
+
+Activation command procedure example:
+| Steps | Data (Host to device) | Data (Device to Host) |
+| ----           | ---- | ---- |
+| CS High -> Low | -    | -    |
+| Write 1Byte    | 0xA5 | -    |
+| CS Low -> High | -    | -    |
+| CS High -> Low | -    | -    |
+| Read 4Bytes    | -    | 0x70, 0x62, 0x74, 0x33 |
+| CS Low -> High | -    | -    |
 
