@@ -241,6 +241,7 @@ The -a option runs the application after the firmware is written.
 ## Write Your Firmware via SPI
 
 On Raspberry Pi, make sure SPI is enabled. 
+You must have spidev installed on your system. 
 
 Connect the device as follows:
 | Host |      | Device (Pico) |
