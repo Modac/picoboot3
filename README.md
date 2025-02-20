@@ -1,6 +1,6 @@
 # Picoboot3
 
-Custom bootloader that allows firmware updates to Raspberry Pi Pico via UART/I2C. 
+Custom bootloader that allows firmware updates to Raspberry Pi Pico via UART/I2C/SPI. 
 
 ## Features
 
