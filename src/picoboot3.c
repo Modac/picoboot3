@@ -9,8 +9,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "hardware/dma.h"
 #include "hardware/flash.h"
 #include "hardware/irq.h"
+#include "hardware/spi.h"
 #include "hardware/sync.h"
 #include "hardware/uart.h"
 #include "picoboot3.h"
@@ -22,6 +24,7 @@
 #define NO_INTERFACE 0
 #define UART_INTERFACE 1
 #define I2C_INTERFACE 2
+#define SPI_INTERFACE 3
 
 // Command codes
 #define NO_COMMAND 0
@@ -77,10 +80,15 @@ uint8_t ready = 1;  // 1:ready, 0:busy(program or erase is running)
 uint8_t uart_receive_buffer[RECEIVE_BUFFER_SIZE];
 int uart_receive_counter = 0;            // Stores the number of bytes of received data
 uint32_t uart_last_receive_time_ms = 0;  // Stores the last receive time
+
 uint8_t i2c_receive_buffer[RECEIVE_BUFFER_SIZE];
 int i2c_receive_counter = 0;           // Stores the number of bytes of received data
 int i2c_select_send_data = SEND_NONE;  // Select what data to be sent to master
 int i2c_send_counter = 0;              // Stores the number of bytes of sent data
+
+uint8_t spi_receive_buffer[RECEIVE_BUFFER_SIZE];
+int spi_receive_counter = 0;  // Stores the number of bytes of received data
+uint spi_receive_dma;         // Stores DMA channel for receive SPI data
 
 // To pass parameters to picoboot3_reserved_command_handler()
 uint8_t reserved_command = NO_COMMAND;
@@ -423,6 +431,172 @@ void picoboot3_i2c_command_handler() {
   }
 }
 
+void picoboot3_spi_init() {
+  gpio_set_function(PICOBOOT3_SPI_CSN_PIN, GPIO_FUNC_SPI);
+  gpio_set_function(PICOBOOT3_SPI_SCK_PIN, GPIO_FUNC_SPI);
+  gpio_set_function(PICOBOOT3_SPI_TX_PIN, GPIO_FUNC_SPI);
+  gpio_set_function(PICOBOOT3_SPI_RX_PIN, GPIO_FUNC_SPI);
+
+  spi_init(PICOBOOT3_SPI_INST, 1000000);  // Baudrate has no effect in slave mode
+  spi_set_slave(PICOBOOT3_SPI_INST, true);
+
+  // SPI Mode3. To transfer multiple bytes with CS low, CPHA must be 1.
+  spi_set_format(PICOBOOT3_SPI_INST, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
+
+  spi_receive_dma = dma_claim_unused_channel(true);
+
+  dma_channel_set_irq0_enabled(spi_receive_dma, true);
+  irq_set_exclusive_handler(DMA_IRQ_0, picoboot3_spi_slave_handler);
+  irq_set_enabled(DMA_IRQ_0, true);
+
+  spi_receive_counter = 0;
+  picoboot3_spi_read(1);
+}
+
+void picoboot3_spi_deinit() {
+  irq_set_enabled(DMA_IRQ_0, false);
+  irq_remove_handler(DMA_IRQ_0, picoboot3_spi_slave_handler);
+  dma_channel_cleanup(spi_receive_dma);
+  spi_deinit(PICOBOOT3_SPI_INST);
+  gpio_deinit(PICOBOOT3_SPI_CSN_PIN);
+  gpio_deinit(PICOBOOT3_SPI_SCK_PIN);
+  gpio_deinit(PICOBOOT3_SPI_TX_PIN);
+  gpio_deinit(PICOBOOT3_SPI_RX_PIN);
+}
+
+// Starts waiting for data to be read via SPI transfer
+// The received data is be stored in spi_receive_buffer + offset(spi_receive_counter)
+// spi_receive_counter will automatically increment by num_of_bytes
+// Clear spi_receive_counter before calling this to store to the beginning of the buffer
+void picoboot3_spi_read(uint num_of_bytes) {
+  hard_assert(spi_receive_counter + num_of_bytes < RECEIVE_BUFFER_SIZE);
+
+  dma_channel_config c = dma_channel_get_default_config(spi_receive_dma);
+  channel_config_set_transfer_data_size(&c, DMA_SIZE_8);
+  channel_config_set_dreq(&c, spi_get_dreq(PICOBOOT3_SPI_INST, false));  // false means receive
+  channel_config_set_read_increment(&c, false);
+  channel_config_set_write_increment(&c, true);  // Increment for muti-bytes read
+  dma_channel_configure(spi_receive_dma, &c,
+                        spi_receive_buffer + spi_receive_counter,  // Write address
+                        &spi_get_hw(PICOBOOT3_SPI_INST)->dr,       // Read address
+                        num_of_bytes,                              // Number of elements
+                        true);                                     // Trigger
+  spi_receive_counter += num_of_bytes;
+}
+
+// SPI interrupt handler called by DMA_IRQ_0
+void picoboot3_spi_slave_handler() {
+  uint16_t num_of_bytes;
+  uint8_t tmp_response_buffer[32];
+
+  dma_channel_acknowledge_irq0(spi_receive_dma);
+
+  if (spi_receive_buffer[0] == ACTIVATE_COMMAND) {
+    if (activated_interface != NO_INTERFACE && activated_interface != SPI_INTERFACE) {
+      spi_receive_counter = 0;
+      picoboot3_spi_read(1);
+      return;  // Only one interface is able to be acvive
+    }
+  } else {
+    if (activated_interface != SPI_INTERFACE) {
+      spi_receive_counter = 0;
+      picoboot3_spi_read(1);
+      return;  // Other commands are valid after activate command
+    }
+  }
+
+  if (!ready && spi_receive_buffer[0] != READY_BUSY_COMMAND) {
+    spi_receive_counter = 0;
+    picoboot3_spi_read(1);
+    return;  // If busy, accept ready/busy command only
+  }
+
+  switch (spi_receive_buffer[0]) {
+    case READY_BUSY_COMMAND:
+      spi_write_blocking(PICOBOOT3_SPI_INST, &ready, 1);
+      spi_receive_counter = 0;
+      picoboot3_spi_read(1);
+      break;
+
+    case VERSION_COMMAND:
+      spi_write_blocking(PICOBOOT3_SPI_INST, version, sizeof(version));
+      spi_receive_counter = 0;
+      picoboot3_spi_read(1);
+      break;
+
+    case READ_COMMAND:
+      if (spi_receive_counter < sizeof(read_command_t)) {
+        picoboot3_spi_read(1);
+        break;
+      }
+      read_command_t* read_command = (read_command_t*)spi_receive_buffer;
+      num_of_bytes = *(uint16_t*)read_command->num_of_bytes;
+      uint32_t flash_address = *(uint32_t*)read_command->flash_address;
+      if (num_of_bytes < 1 || num_of_bytes > MAX_READ_BYTES) break;
+      spi_write_blocking(PICOBOOT3_SPI_INST, (uint8_t*)(XIP_BASE + flash_address), num_of_bytes);
+      spi_receive_counter = 0;
+      picoboot3_spi_read(1);
+      break;
+
+    case PROGRAM_COMMAND:
+      if (spi_receive_counter < 7) {
+        picoboot3_spi_read(1);
+        break;
+      }
+      num_of_bytes = *(uint16_t*)(spi_receive_buffer + 5);
+      if (spi_receive_counter < 7 + num_of_bytes) {
+        picoboot3_spi_read(num_of_bytes);
+        break;
+      }
+      memcpy(&reserved_program_command, spi_receive_buffer, sizeof(program_command_t));
+      reserved_command = PROGRAM_COMMAND;
+      ready = 0;
+      spi_receive_counter = 0;
+      picoboot3_spi_read(1);
+      break;
+
+    case ERASE_COMMAND:
+      if (spi_receive_counter < sizeof(erase_command_t)) {
+        picoboot3_spi_read(1);
+        break;
+      }
+      memcpy(&reserved_erase_command, spi_receive_buffer, sizeof(erase_command_t));
+      reserved_command = ERASE_COMMAND;
+      ready = 0;
+      spi_receive_counter = 0;
+      picoboot3_spi_read(1);
+      break;
+
+    case GO_TO_APPCODE_COMMAND:
+      reserved_command = GO_TO_APPCODE_COMMAND;
+      ready = 0;
+      spi_receive_counter = 0;
+      break;
+
+    case FLASH_SIZE_COMMAND:
+      for (int i = 0; i < 4; i++) {
+        tmp_response_buffer[i] = (PICO_FLASH_SIZE_BYTES >> (i * 8)) & 0xFF;
+      }
+      spi_write_blocking(PICOBOOT3_SPI_INST, tmp_response_buffer, 4);
+
+      spi_receive_counter = 0;
+      picoboot3_spi_read(1);
+      break;
+
+    case ACTIVATE_COMMAND:
+      activated_interface = SPI_INTERFACE;
+      spi_write_blocking(PICOBOOT3_SPI_INST, activation_response, sizeof(activation_response));
+      spi_receive_counter = 0;
+      picoboot3_spi_read(1);
+      break;
+
+    default:
+      spi_receive_counter = 0;  // Unknown command. Clear buffer.
+      picoboot3_spi_read(1);
+      break;
+  }
+}
+
 // Handle program, erase and go_to_appcode command here as they take time
 // Call this in the main loop
 void picoboot3_reserved_command_handler() {
@@ -431,6 +605,7 @@ void picoboot3_reserved_command_handler() {
       picoboot3_bootsel_deinit();
       picoboot3_uart_deinit();
       picoboot3_i2c_deinit();
+      picoboot3_spi_deinit();
       picoboot3_debug_uart_deinit();
       picoboot3_go_to_appcode();
       break;

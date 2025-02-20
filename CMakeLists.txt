@@ -26,7 +26,9 @@ add_executable(${CMAKE_PROJECT_NAME}
 target_link_libraries(${CMAKE_PROJECT_NAME}
   pico_stdlib
   pico_i2c_slave
+  hardware_dma
   hardware_flash
+  hardware_spi
 )
 
 if (PICO_CYW43_SUPPORTED)

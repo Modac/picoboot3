@@ -45,6 +45,13 @@
 #define PICOBOOT3_I2C_SCL_PIN PICO_DEFAULT_I2C_SCL_PIN
 #define PICOBOOT3_I2C_ADDRESS 0x5E
 
+// SPI setting to communicate with the host
+#define PICOBOOT3_SPI_INST spi_default
+#define PICOBOOT3_SPI_CSN_PIN PICO_DEFAULT_SPI_CSN_PIN
+#define PICOBOOT3_SPI_SCK_PIN PICO_DEFAULT_SPI_SCK_PIN
+#define PICOBOOT3_SPI_TX_PIN PICO_DEFAULT_SPI_TX_PIN
+#define PICOBOOT3_SPI_RX_PIN PICO_DEFAULT_SPI_RX_PIN
+
 // UART for printf debug
 // If it's enabled, you can use printf after picoboot3_debug_uart_init()
 // Use different uart instanse from above
@@ -70,6 +77,10 @@ void picoboot3_i2c_init();
 void picoboot3_i2c_deinit();
 void picoboot3_i2c_slave_handler(i2c_inst_t *i2c, i2c_slave_event_t event);
 void picoboot3_i2c_command_handler();
+void picoboot3_spi_init();
+void picoboot3_spi_deinit();
+void picoboot3_spi_read(uint num_of_bytes);
+void picoboot3_spi_slave_handler();
 void picoboot3_reserved_command_handler();
 
 #endif

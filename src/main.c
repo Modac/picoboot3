@@ -20,6 +20,7 @@ int main() {
   picoboot3_debug_uart_init();
   picoboot3_uart_init();
   picoboot3_i2c_init();
+  picoboot3_spi_init();
 
   while (1) {
     picoboot3_reserved_command_handler();
