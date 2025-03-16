@@ -256,7 +256,7 @@ Reset the MCU by holding BOOTSEL3 pin (default is GP22) low to enter bootloader 
 
 Write firmware with the following command. 
 Only bin format is supported. Do not use elf or uf2. 
---bus specifies SPI bus#. Use 1 for Raspberry Pi. 
+--bus specifies SPI bus#. Use 0 for Raspberry Pi. 
 --device specifies CE#. 
 10MHz or lower baudrate is recommended. 
 ~~~
