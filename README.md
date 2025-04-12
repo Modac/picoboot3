@@ -202,7 +202,16 @@ Connect the device as follows:
 | UART RX | ---  | UART TX (Default is GP0)  |
 | GND     | ---  | GND           |
 
-Reset the MCU by holding BOOTSEL3 pin (default is GP22) low to enter bootloader mode. 
+Reboot into picoboot3 by either
+- restarting the MCU and holding BOOTSEL3 pin (default is GP22) low
+- using the following code:
+  ```C++
+  watchdog_hw->scratch[0] = 1;
+  watchdog_reboot(0, 0, 10);
+  while (1) {
+    continue;
+  }
+  ```
 
 Write firmware with the following command. 
 Only bin format is supported. Do not use elf or uf2. 
