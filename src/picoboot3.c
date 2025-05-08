@@ -16,7 +16,6 @@
 #include "hardware/sync.h"
 #include "hardware/uart.h"
 #include "hardware/watchdog.h"
-#include "picoboot3.h"
 
 #define RECEIVE_BUFFER_SIZE 4200
 #define MAX_READ_BYTES 4096  // For read command

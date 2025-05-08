@@ -1,7 +1,7 @@
 ## Overview
 
 An example blink project to run with Picoboot3. 
-
+After blinking LED 10 times, enter picoboot3 without holding BOOTSEL3 pin. 
 
 ## Key Changes
 

@@ -19,7 +19,7 @@
 
 // A version code to inform the host of the bootloader capability
 #define PICOBOOT3_MAJOR_VERSION 1
-#define PICOBOOT3_MINOR_VERSION 1
+#define PICOBOOT3_MINOR_VERSION 2
 #define PICOBOOT3_PATCH_VERSION 0
 
 // GPIO settings for switching between user applications or bootloaders

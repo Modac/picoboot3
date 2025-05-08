@@ -204,7 +204,7 @@ Connect the device as follows:
 
 Reboot into picoboot3 by either
 - restarting the MCU and holding BOOTSEL3 pin (default is GP22) low
-- using the following code:
+- using the following code in your application ([example](examples/blink_pb3/src/main.c)):
   ```C++
   watchdog_hw->scratch[0] = 1;
   watchdog_reboot(0, 0, 10);
@@ -235,7 +235,16 @@ Connect the device as follows:
 | SCL  | ---  | SCL (Default is GP5)  |
 | GND  | ---  | GND           |
 
-Reset the MCU by holding BOOTSEL3 pin (default is GP22) low to enter bootloader mode. 
+Reboot into picoboot3 by either
+- restarting the MCU and holding BOOTSEL3 pin (default is GP22) low
+- using the following code in your application ([example](examples/blink_pb3/src/main.c)):
+  ```C++
+  watchdog_hw->scratch[0] = 1;
+  watchdog_reboot(0, 0, 10);
+  while (1) {
+    continue;
+  }
+  ```
 
 Write firmware with the following command. 
 Only bin format is supported. Do not use elf or uf2. 
@@ -261,7 +270,16 @@ Connect the device as follows:
 | MISO | ---  | TX (Default is GP19)  |
 | GND  | ---  | GND           |
 
-Reset the MCU by holding BOOTSEL3 pin (default is GP22) low to enter bootloader mode. 
+Reboot into picoboot3 by either
+- restarting the MCU and holding BOOTSEL3 pin (default is GP22) low
+- using the following code in your application ([example](examples/blink_pb3/src/main.c)):
+  ```C++
+  watchdog_hw->scratch[0] = 1;
+  watchdog_reboot(0, 0, 10);
+  while (1) {
+    continue;
+  }
+  ```
 
 Write firmware with the following command. 
 Only bin format is supported. Do not use elf or uf2. 
