@@ -300,6 +300,7 @@ void picoboot3_i2c_deinit() {
 void picoboot3_i2c_slave_handler(i2c_inst_t* i2c, i2c_slave_event_t event) {
   switch (event) {
     case I2C_SLAVE_RECEIVE:
+//printf("I2C_SLAVE_RECEIVE\n");
       if (i2c_receive_counter < RECEIVE_BUFFER_SIZE) {
         i2c_receive_buffer[i2c_receive_counter++] = i2c_read_byte_raw(i2c);
       } else {
@@ -307,6 +308,7 @@ void picoboot3_i2c_slave_handler(i2c_inst_t* i2c, i2c_slave_event_t event) {
       }
       break;
     case I2C_SLAVE_REQUEST:
+//printf("I2C_SLAVE_REQUEST for send data %d\n", i2c_select_send_data);
       switch (i2c_select_send_data) {
         case SEND_READY_BUSY:
           i2c_write_byte_raw(i2c, ready);
@@ -346,6 +348,7 @@ void picoboot3_i2c_slave_handler(i2c_inst_t* i2c, i2c_slave_event_t event) {
       }
       break;
     case I2C_SLAVE_FINISH:
+printf("I2C_SLAVE_FINISH with %d received bytes\n", i2c_receive_counter);
       if (i2c_receive_counter > 0) picoboot3_i2c_command_handler(I2C_INTERFACE);
       i2c_receive_counter = 0;
       break;
@@ -358,6 +361,8 @@ void picoboot3_i2c_slave_handler(i2c_inst_t* i2c, i2c_slave_event_t event) {
 // Called by picoboot3_i2c_slave_handler
 void picoboot3_i2c_command_handler() {
   uint16_t num_of_bytes;
+  
+//printf("i2c_command_handler with command 0x%02X\n", i2c_receive_buffer[0]);
 
   if (i2c_receive_buffer[0] == ACTIVATE_COMMAND) {
     if (activated_interface != NO_INTERFACE && activated_interface != I2C_INTERFACE)
@@ -372,17 +377,20 @@ void picoboot3_i2c_command_handler() {
 
   switch (i2c_receive_buffer[0]) {
     case READY_BUSY_COMMAND:
+//printf("READY_BUSY_COMMAND\n");
       if (i2c_receive_counter != 1) break;
       i2c_select_send_data = SEND_READY_BUSY;
       break;
 
     case VERSION_COMMAND:
+//printf("VERSION_COMMAND\n");
       if (i2c_receive_counter != 1) break;
       i2c_select_send_data = SEND_VERSION;
       i2c_send_counter = 0;
       break;
 
     case READ_COMMAND:
+//printf("READ_COMMAND\n");
       if (i2c_receive_counter != sizeof(read_command_t)) break;
       read_command_t* read_command = (read_command_t*)i2c_receive_buffer;
       num_of_bytes = *(uint16_t*)read_command->num_of_bytes;
@@ -393,6 +401,7 @@ void picoboot3_i2c_command_handler() {
       break;
 
     case PROGRAM_COMMAND:
+//printf("PROGRAM_COMMAND\n");
       if (i2c_receive_counter < 7) break;
       num_of_bytes = *(uint16_t*)(i2c_receive_buffer + 5);
       if (i2c_receive_counter < 7 + num_of_bytes) break;
@@ -403,6 +412,7 @@ void picoboot3_i2c_command_handler() {
       break;
 
     case ERASE_COMMAND:
+//printf("ERASE_COMMAND\n");
       if (i2c_receive_counter != sizeof(erase_command_t)) break;
       memcpy(&reserved_erase_command, i2c_receive_buffer, sizeof(erase_command_t));
       i2c_select_send_data = SEND_READY_BUSY;
@@ -411,6 +421,7 @@ void picoboot3_i2c_command_handler() {
       break;
 
     case GO_TO_APPCODE_COMMAND:
+//printf("GO_TO_APPCODE_COMMAND\n");
       if (i2c_receive_counter != 1) break;
       i2c_select_send_data = SEND_READY_BUSY;
       reserved_command = GO_TO_APPCODE_COMMAND;
@@ -418,12 +429,14 @@ void picoboot3_i2c_command_handler() {
       break;
 
     case FLASH_SIZE_COMMAND:
+//printf("FLASH_SIZE_COMMAND\n");
       if (i2c_receive_counter != 1) break;
       i2c_select_send_data = SEND_FLASH_SIZE;
       i2c_send_counter = 0;
       break;
 
     case ACTIVATE_COMMAND:
+//printf("ACTIVATE_COMMAND\n"); 
       if (i2c_receive_counter != 1) break;
       activated_interface = I2C_INTERFACE;
       i2c_select_send_data = SEND_ACTIVATION_RESPONSE;
@@ -433,6 +446,7 @@ void picoboot3_i2c_command_handler() {
     default:
       break;
   }
+//printf("i2c_command_handler end\n");
 }
 
 void picoboot3_spi_init() {
@@ -604,6 +618,7 @@ void picoboot3_spi_slave_handler() {
 // Handle program, erase and go_to_appcode command here as they take time
 // Call this in the main loop
 void picoboot3_reserved_command_handler() {
+//printf("reserved_command_handler with command %#02X\n", reserved_command);
   switch (reserved_command) {
     case GO_TO_APPCODE_COMMAND:
       picoboot3_bootsel_deinit();
@@ -615,8 +630,9 @@ void picoboot3_reserved_command_handler() {
       break;
 
     case PROGRAM_COMMAND:
-      uint32_t flash_address = *(uint32_t*)reserved_program_command.flash_address;
-      uint16_t num_of_bytes = *(uint16_t*)reserved_program_command.num_of_bytes;
+    uint32_t flash_address = *(uint32_t*)reserved_program_command.flash_address;
+    uint16_t num_of_bytes = *(uint16_t*)reserved_program_command.num_of_bytes;
+printf("PROGRAM_COMMAND: \n  command: 0x%02X\n  flash_address: 0x%08X\n  num_of_bytes: %d\n", reserved_program_command.command, flash_address, num_of_bytes);
 
       if (PICOBOOT3_APPCODE_OFFSET > flash_address ||
           PICO_FLASH_SIZE_BYTES <= flash_address ||
@@ -631,6 +647,8 @@ void picoboot3_reserved_command_handler() {
         break;
       }
 
+printf("programming flash...\n");
+
       // Even if running in SRAM, disable interrupt to avoid failure on I2C
       uint32_t interrupt_status = save_and_disable_interrupts();
       flash_range_program(flash_address,
@@ -639,10 +657,13 @@ void picoboot3_reserved_command_handler() {
       restore_interrupts(interrupt_status);
       reserved_command = NO_COMMAND;
       ready = 1;
+printf("programmed flash!\n");
       break;
 
     case ERASE_COMMAND:
       uint16_t sector = *(uint16_t*)reserved_erase_command.sector;
+
+printf("ERASE_COMMAND: \n  command: 0x%02X\n  sector: 0x%04X\n", reserved_program_command.command, sector);
 
       // The sector is used by picoboot3 or out of flash size
       if (PICOBOOT3_APPCODE_OFFSET / FLASH_SECTOR_SIZE > sector ||
@@ -651,9 +672,11 @@ void picoboot3_reserved_command_handler() {
         ready = 1;
         break;
       }
+printf("erasing flash...\n");
       flash_range_erase(FLASH_SECTOR_SIZE * sector, FLASH_SECTOR_SIZE);
       reserved_command = NO_COMMAND;
       ready = 1;
+printf("erased flash!\n");
       break;
 
     default:
