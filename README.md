@@ -255,6 +255,27 @@ picoboot3 -i i2c -f your_firmware.bin --bus 1 -a
 
 The -a option runs the application after the firmware is written.
 
+## Write your Firmware via I2C over a I2C-tiny-usb or I2C-mega-usb
+
+This is similar to writing by I2C.
+A tiny change needs to be made to the Pico SDK to allow splitting the I2C transaction into multiple transfers without the bootloader to know.
+In file `<pico-sdk-path>\src\rp2_common\pico_i2c_slave\i2c_slave.c` in function `i2c_slave_irq_handler` comment out the line as seen below (for SDK 2.1.1 it's line 35):
+```C++
+if (intr_stat & I2C_IC_INTR_STAT_R_START_DET_BITS) {
+  hw->clr_start_det;
+  //do_finish_transfer = true;
+}
+```
+
+Write the firmware with the following command.
+Only bin format is supported. Do not use elf or uf2. 
+--vendor_id specifies I2C-tiny-usb vendor-id. Default is 0x0403
+--product_id specifies I2C-tiny-usb product-id. Default is 0xc631
+~~~
+picoboot3 -i i2c-tiny-usb -f your_firmware.bin -a
+~~~
+
+The -a option runs the application after the firmware is written.
 
 ## Write Your Firmware via SPI
 
