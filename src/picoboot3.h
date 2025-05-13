@@ -23,7 +23,7 @@
 #define PICOBOOT3_PATCH_VERSION 0
 
 // GPIO settings for switching between user applications or bootloaders
-#define PICOBOOT3_BOOTSEL3_PIN 22
+#define PICOBOOT3_BOOTSEL3_PIN 11
 #define PICOBOOT3_BOOTSEL3_PULLUP 1
 #define PICOBOOT3_BOOTSEL3_READ_DELAY_MS 5
 #define PICOBOOT3_BOOTSEL3_VAL_TO_START_BOOTLOADER 0
@@ -40,9 +40,12 @@
 #define PICOBOOT3_UART_TIMEOUT_MS 1000
 
 // I2C setting to communicate with the host
-#define PICOBOOT3_I2C_INST i2c_default
-#define PICOBOOT3_I2C_SDA_PIN PICO_DEFAULT_I2C_SDA_PIN
-#define PICOBOOT3_I2C_SCL_PIN PICO_DEFAULT_I2C_SCL_PIN
+// #define PICOBOOT3_I2C_INST i2c_default
+#define PICOBOOT3_I2C_INST i2c1
+// #define PICOBOOT3_I2C_SDA_PIN PICO_DEFAULT_I2C_SDA_PIN
+#define PICOBOOT3_I2C_SDA_PIN 2
+// #define PICOBOOT3_I2C_SCL_PIN PICO_DEFAULT_I2C_SCL_PIN
+#define PICOBOOT3_I2C_SCL_PIN 3
 #define PICOBOOT3_I2C_ADDRESS 0x5E
 
 // SPI setting to communicate with the host
@@ -55,7 +58,7 @@
 // UART for printf debug
 // If it's enabled, you can use printf after picoboot3_debug_uart_init()
 // Use different uart instanse from above
-#define PICOBOOT3_DEBUG_UART 0  // Set 1 to enable
+#define PICOBOOT3_DEBUG_UART 1  // Set 1 to enable
 #define PICOBOOT3_DEBUG_UART_INST uart1
 #define PICOBOOT3_DEBUG_UART_BAUDRATE 115200
 #define PICOBOOT3_DEBUG_UART_TX_PIN 8
